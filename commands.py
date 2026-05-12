@@ -134,37 +134,36 @@ def _hero_embed(hero: dict) -> discord.Embed:
     return embed
 
 
-def _build_embed(hero: dict, build: dict | None) -> discord.Embed:
-    embed = discord.Embed(
-        title=hero['name'],
-        color=RARITY_COLOR.get(hero.get("rarity", ""), 0x4169E1),
-        url=_SITE_URL,
-    )
+def _build_embeds(hero: dict, build: dict | None) -> list[discord.Embed]:
+    color = RARITY_COLOR.get(hero.get("rarity", ""), 0x4169E1)
+    hero_page = data.get_hero_page_url(hero) or _SITE_URL
     portrait = data.get_portrait_url(hero)
 
+    e1 = discord.Embed(title=hero["name"], color=color, url=hero_page)
     if hero.get("factions"):
-        embed.add_field(name="Faction(s)", value=", ".join(hero["factions"]), inline=True)
+        e1.add_field(name="Faction(s)", value=", ".join(hero["factions"]), inline=True)
     if hero.get("rarity"):
-        embed.add_field(name="Rarity", value=RARITY_LABEL.get(hero["rarity"], hero["rarity"]), inline=True)
-
+        e1.add_field(name="Rarity", value=RARITY_LABEL.get(hero["rarity"], hero["rarity"]), inline=True)
     if portrait:
-        embed.set_thumbnail(url=portrait)
+        e1.set_thumbnail(url=portrait)
 
     if not build:
-        embed.description = f"No build data found for this hero.\n[View on bannernews]({_SITE_URL})"
-        embed.set_footer(text=_FOOTER)
-        return embed
+        e1.description = f"No build data found for this hero.\n[View on bannernews]({_SITE_URL})"
+        e1.set_footer(text=_FOOTER)
+        return [e1]
 
-    # --- Structured build data ---
+    # Talent
     if build.get("talent_name"):
         talent_val = build["talent_name"]
         if build.get("talent_desc"):
-            # Cap talent description to avoid embed overflow
             desc = build["talent_desc"]
             if len(desc) > 300:
                 desc = desc[:297] + "…"
             talent_val += f"\n*{desc}*"
-        embed.add_field(name="Talent", value=talent_val, inline=False)
+        e1.add_field(name="Talent", value=talent_val, inline=False)
+    talent_icon = data.get_talent_icon_url(build)
+    if talent_icon:
+        e1.set_image(url=talent_icon)
 
     # Soldier bonuses
     bonuses = []
@@ -172,7 +171,7 @@ def _build_embed(hero: dict, build: dict | None) -> discord.Embed:
         if build.get(key):
             bonuses.append(f"{label} {build[key]}")
     if bonuses:
-        embed.add_field(name="Soldier Bonuses", value="  ".join(bonuses), inline=True)
+        e1.add_field(name="Soldier Bonuses", value="  ".join(bonuses), inline=True)
 
     # Weapons & armor
     gear_parts = []
@@ -181,32 +180,38 @@ def _build_embed(hero: dict, build: dict | None) -> discord.Embed:
     if build.get("armor"):
         gear_parts.append("**Armor:** " + build["armor"])
     if gear_parts:
-        embed.add_field(name="Equipment Restrictions", value="\n".join(gear_parts), inline=True)
+        e1.add_field(name="Equipment Restrictions", value="\n".join(gear_parts), inline=True)
 
     # Recommended soldiers
     if build.get("soldiers"):
         soldiers_str = ", ".join(build["soldiers"])
         if len(soldiers_str) > 1024:
             soldiers_str = soldiers_str[:1021] + "…"
-        embed.add_field(name="Recommended Soldiers", value=soldiers_str, inline=False)
-
+        e1.add_field(name="Recommended Soldiers", value=soldiers_str, inline=False)
     if build.get("soldiers_sp"):
-        embed.add_field(name="SP Soldiers", value=", ".join(build["soldiers_sp"])[:1024], inline=False)
+        e1.add_field(name="SP Soldiers", value=", ".join(build["soldiers_sp"])[:1024], inline=False)
 
-    # Personal item
-    if build.get("item_name"):
-        item_val = f"**{build['item_name']}**"
-        if build.get("item_stats"):
-            item_val += f"  ({build['item_stats']})"
-        if build.get("item_desc"):
-            desc = build["item_desc"]
-            if len(desc) > 200:
-                desc = desc[:197] + "…"
-            item_val += f"\n{desc}"
-        embed.add_field(name="Personal Item", value=item_val, inline=False)
+    e1.set_footer(text=_FOOTER)
 
-    embed.set_footer(text=_FOOTER)
-    return embed
+    # Embed 2: personal item with its icon as thumbnail
+    if not build.get("item_name"):
+        return [e1]
+
+    e2 = discord.Embed(color=color)
+    item_val = f"**{build['item_name']}**"
+    if build.get("item_stats"):
+        item_val += f"\n{build['item_stats']}"
+    if build.get("item_desc"):
+        desc = build["item_desc"]
+        if len(desc) > 300:
+            desc = desc[:297] + "…"
+        item_val += f"\n{desc}"
+    e2.add_field(name="Personal Item", value=item_val, inline=False)
+    item_icon = data.get_item_icon_url(hero)
+    if item_icon:
+        e2.set_thumbnail(url=item_icon)
+
+    return [e1, e2]
 
 
 def _soldier_embed(s: dict) -> discord.Embed:
@@ -330,7 +335,7 @@ def register(tree: app_commands.CommandTree) -> None:
 
         hero_info = data.HEROES[hero_key]
         build_info = data.BUILDS.get(hero_key)
-        await interaction.response.send_message(embed=_build_embed(hero_info, build_info))
+        await interaction.response.send_message(embeds=_build_embeds(hero_info, build_info))
 
     @tree.command(name="troop", description="Look up a troop type, or list all troops")
     @app_commands.describe(name="Troop name (leave blank to list all)")

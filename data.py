@@ -140,7 +140,7 @@ def _field(row: list, i: int) -> str:
 
 def _split_ru(s: str, tr: dict[str, str]) -> list[str]:
     """Split a comma-separated Russian string and translate each term."""
-    return [tr.get(p.strip(), p.strip()) for p in s.split(",") if p.strip()] if s else []
+    return [tr.get(p.strip().lower(), p.strip()) for p in s.split(",") if p.strip()] if s else []
 
 
 # ---------------------------------------------------------------------------
@@ -170,7 +170,7 @@ def load_heroes() -> None:
             "sp":       row[5] == "SP",
             "story":    STORY_MAP.get(row[6], row[6]),
         }
-        ru_map[name_ru] = name_en
+        ru_map[name_ru.lower()] = name_en
     HEROES     = heroes
     HERO_NAMES = sorted(h["name"] for h in heroes.values())
     _RU_TO_EN  = ru_map
@@ -181,7 +181,8 @@ def load_bonds() -> None:
     global BONDS
 
     def _tr(s: str) -> str:
-        return _RU_TO_EN.get(s.strip(), s.strip())
+        s = s.strip()
+        return _RU_TO_EN.get(s.lower(), s)
 
     def _tr_list(s: str) -> list[str]:
         return [_tr(n) for n in s.split(",") if n.strip()] if s else []
@@ -213,7 +214,7 @@ def load_soldiers() -> None:
         if not name_en:
             continue
         name_ru = row[0].strip()
-        ru_en[name_ru] = name_en
+        ru_en[name_ru.lower()] = name_en
         key = name_en.lower()
         soldiers[key] = {
             "name":        name_en,
@@ -226,7 +227,7 @@ def load_soldiers() -> None:
             "range":       row[7],
             "desc":        row[9],
             "troop_class": row[10],
-            "heroes":      [_RU_TO_EN.get(h.strip(), h.strip()) for h in row[11].split(",") if h.strip()] if row[11] else [],
+            "heroes":      [_RU_TO_EN.get(h.strip().lower(), h.strip()) for h in row[11].split(",") if h.strip()] if row[11] else [],
             "move_type":   _MOVE_TYPE_EN.get(row[12].strip(), row[12].strip()) if len(row) > 12 else "",
         }
     SOLDIERS       = soldiers
@@ -255,7 +256,7 @@ def load_builds() -> None:
         name_ru = _field(row, 0)
         if not name_ru:
             continue
-        name_en = _RU_TO_EN.get(name_ru, name_ru)
+        name_en = _RU_TO_EN.get(name_ru.lower(), name_ru)
         key = name_en.lower()
 
         # Soldier stat bonuses (stored as plain integers like "10", "35")
