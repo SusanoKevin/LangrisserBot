@@ -1,7 +1,28 @@
+# Environment
 .env
+
+# Virtual environment
 .venv/
+
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+*.egg-info/
+
+# Local build image overrides
 builds/
+
+# Logs
+*.log
 nohup.out
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code project files
+.claude/
