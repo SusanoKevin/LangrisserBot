@@ -1,6 +1,6 @@
 # LangrisserBot
 
-A Discord bot for [Langrisser Mobile](https://bannernews.github.io/langrisser/) that provides hero, build, troop, faction, and bond lookups via slash commands. Game data is pulled live from the bannernews community repository and refreshed automatically every 4 hours.
+A Discord bot for [Langrisser Mobile](https://langrisser.zlongame.com/main.html) that provides hero, build, troop, faction, and bond lookups via slash commands. Game data is pulled live from the bannernews community repository and refreshed automatically every 4 hours.
 
 ## Commands
 
