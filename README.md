@@ -37,10 +37,6 @@ A Discord bot for [Langrisser Mobile](https://langrisser.zlongame.com/main.html)
    python bot.py
    ```
 
-## Local build image overrides
-
-Drop an image named after the hero (e.g. `builds/leon.png`) into the `builds/` directory. The `/build` command will use it instead of structured data. Supported formats: `.png`, `.jpg`, `.jpeg`, `.webp`.
-
 ## Data source
 
 All game data is fetched from the [bannernews/langrisser](https://github.com/bannernews/langrisser) repository. The bot checks for upstream commits every 4 hours and reloads automatically. If `ANNOUNCE_CHANNEL_ID` is set, new heroes are announced in that channel when detected.
