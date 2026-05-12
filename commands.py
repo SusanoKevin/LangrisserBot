@@ -134,7 +134,7 @@ def _hero_embed(hero: dict) -> discord.Embed:
     return embed
 
 
-def _build_embed(hero: dict, build: dict | None, image_path: str | None) -> discord.Embed:
+def _build_embed(hero: dict, build: dict | None) -> discord.Embed:
     embed = discord.Embed(
         title=hero['name'],
         color=RARITY_COLOR.get(hero.get("rarity", ""), 0x4169E1),
@@ -146,13 +146,6 @@ def _build_embed(hero: dict, build: dict | None, image_path: str | None) -> disc
         embed.add_field(name="Faction(s)", value=", ".join(hero["factions"]), inline=True)
     if hero.get("rarity"):
         embed.add_field(name="Rarity", value=RARITY_LABEL.get(hero["rarity"], hero["rarity"]), inline=True)
-
-    if image_path:
-        if portrait:
-            embed.set_thumbnail(url=portrait)
-        embed.set_image(url="attachment://build.png")
-        embed.set_footer(text="Local build image • " + _FOOTER)
-        return embed
 
     if portrait:
         embed.set_thumbnail(url=portrait)
@@ -337,21 +330,7 @@ def register(tree: app_commands.CommandTree) -> None:
 
         hero_info = data.HEROES[hero_key]
         build_info = data.BUILDS.get(hero_key)
-
-        # Optional local image override
-        image_path = data.find_build_image(hero_key)
-        if image_path is None:
-            # Also try normalized (spaces→underscores) version
-            norm_key = data.normalize(hero_key)
-            image_path = data.find_build_image(norm_key)
-
-        embed = _build_embed(hero_info, build_info, image_path)
-
-        if image_path:
-            file = discord.File(image_path, filename="build.png")
-            await interaction.response.send_message(embed=embed, file=file)
-        else:
-            await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=_build_embed(hero_info, build_info))
 
     @tree.command(name="troop", description="Look up a troop type, or list all troops")
     @app_commands.describe(name="Troop name (leave blank to list all)")

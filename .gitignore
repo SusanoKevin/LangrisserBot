@@ -11,9 +11,6 @@ __pycache__/
 *.pyd
 *.egg-info/
 
-# Local build image overrides
-builds/
-
 # Logs
 *.log
 nohup.out

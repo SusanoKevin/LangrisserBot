@@ -1,6 +1,5 @@
 import re
 import json
-import os
 import difflib
 import logging
 import urllib.parse
@@ -74,9 +73,6 @@ _ARMOR_EN = {
     "тяжелая": "Heavy", "легкая": "Light", "волшебная": "Magic",
     "водная": "Aqua", "обычная": "Normal", "тканевая": "Cloth",
 }
-
-IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
-BUILDS_DIR = os.getenv("BUILDS_DIR", "builds")
 
 # Module-level data stores
 HEROES:     dict[str, dict] = {}
@@ -409,25 +405,6 @@ def get_talent_icon_url(build: dict) -> str:
 # ---------------------------------------------------------------------------
 # Local build-image override (optional — drop an image in builds/ to override)
 # ---------------------------------------------------------------------------
-
-def scan_builds(builds_dir: str = BUILDS_DIR) -> list[str]:
-    if not os.path.isdir(builds_dir):
-        return []
-    keys = []
-    for fname in os.listdir(builds_dir):
-        stem, ext = os.path.splitext(fname)
-        if ext.lower() in IMAGE_EXTS:
-            keys.append(stem.lower())
-    return sorted(keys)
-
-
-def find_build_image(hero_key: str, builds_dir: str = BUILDS_DIR) -> str | None:
-    for ext in IMAGE_EXTS:
-        path = os.path.join(builds_dir, hero_key + ext)
-        if os.path.isfile(path):
-            return path
-    return None
-
 
 # ---------------------------------------------------------------------------
 # Matching helpers
