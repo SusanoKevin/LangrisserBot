@@ -208,29 +208,40 @@ def _quickinfo_embeds(hero: dict, build: dict | None) -> list[discord.Embed]:
     return [e1, e2]
 
 
-def _bonds_embed(hero_name: str, bond: dict, hero: dict) -> discord.Embed:
-    embed = discord.Embed(title=f"{hero_name} — Bonds", color=0x00BFFF)
+def _bonds_embeds(hero_name: str, bond: dict, hero: dict) -> list[discord.Embed]:
+    def_partner = bond.get("def_bond")
+    atk_partner = bond.get("atk_bond")
+
+    e1 = discord.Embed(title=f"{hero_name} — Bonds", color=0x00BFFF)
     portrait = data.get_portrait_url(hero)
     if portrait:
-        embed.set_thumbnail(url=portrait)
-    partner_name = bond.get("def_bond") or bond.get("atk_bond")
-    if partner_name:
-        partner_hero = data.HEROES.get(partner_name.lower())
-        if partner_hero:
-            embed.set_image(url=data.get_portrait_url(partner_hero))
-    if bond.get("def_bond"):
-        embed.add_field(name="DEF Bond Partner", value=bond["def_bond"], inline=True)
-    if bond.get("atk_bond"):
-        embed.add_field(name="ATK Bond Partner", value=bond["atk_bond"], inline=True)
+        e1.set_thumbnail(url=portrait)
+
+    # Embed 1 main image: DEF partner portrait (falls back to ATK if no DEF)
+    primary = def_partner or atk_partner
+    if primary and (h := data.HEROES.get(primary.lower())):
+        e1.set_image(url=data.get_portrait_url(h))
+
+    if def_partner:
+        e1.add_field(name="DEF Bond Partner", value=def_partner, inline=True)
+    if atk_partner:
+        e1.add_field(name="ATK Bond Partner", value=atk_partner, inline=True)
     if bond.get("needed_for_def"):
-        embed.add_field(name="Needed for DEF bonds by", value=", ".join(bond["needed_for_def"])[:1024], inline=False)
+        e1.add_field(name="Needed for DEF bonds by", value=", ".join(bond["needed_for_def"])[:1024], inline=False)
     if bond.get("needed_for_atk"):
-        embed.add_field(name="Needed for ATK bonds by", value=", ".join(bond["needed_for_atk"])[:1024], inline=False)
-    if not any([bond.get("def_bond"), bond.get("atk_bond"),
-                bond.get("needed_for_def"), bond.get("needed_for_atk")]):
-        embed.description = "No bond information available for this hero."
-    embed.set_footer(text=_FOOTER)
-    return embed
+        e1.add_field(name="Needed for ATK bonds by", value=", ".join(bond["needed_for_atk"])[:1024], inline=False)
+    if not any([def_partner, atk_partner, bond.get("needed_for_def"), bond.get("needed_for_atk")]):
+        e1.description = "No bond heroes needed."
+    e1.set_footer(text=_FOOTER)
+
+    embeds = [e1]
+    # Embed 2: ATK partner portrait when both partners exist and are different people
+    if def_partner and atk_partner and def_partner != atk_partner:
+        if atk_hero := data.HEROES.get(atk_partner.lower()):
+            e2 = discord.Embed(color=0x00BFFF)
+            e2.set_image(url=data.get_portrait_url(atk_hero))
+            embeds.append(e2)
+    return embeds
 
 
 def _faction_embed(faction_name: str, heroes: list[dict], faction_code: str = "") -> discord.Embed:
@@ -355,7 +366,7 @@ async def bonds(interaction: discord.Interaction, hero: str):
             f"No bond data found for **{hero_info['name']}**.", ephemeral=True
         )
         return
-    await interaction.response.send_message(embed=_bonds_embed(hero_info["name"], bond, hero_info))
+    await interaction.response.send_message(embeds=_bonds_embeds(hero_info["name"], bond, hero_info))
 
 
 @tree.command(name="faction", description="List all heroes in a faction")
