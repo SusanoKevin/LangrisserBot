@@ -104,24 +104,6 @@ def _build_stems() -> set[str]:
             if os.path.splitext(fn)[1].lower() in IMAGE_EXTS}
 
 
-def _hero_has_build(name: str, stems: set[str]) -> bool:
-    key = name.lower()
-    no_sp = key.replace(" ", "")
-    and_form = key.replace(" & ", "and").replace(" ", "")
-    return bool({key, no_sp, no_sp.replace("&", ""), and_form} & stems)
-
-
-def _covered_stems(stems: set[str]) -> set[str]:
-    """Return stems that are already matched by a hero in game data."""
-    covered = set()
-    for name in data.HERO_NAMES:
-        key = name.lower()
-        no_sp = key.replace(" ", "")
-        and_form = key.replace(" & ", "and").replace(" ", "")
-        covered |= {key, no_sp, no_sp.replace("&", ""), and_form} & stems
-    return covered
-
-
 def _stem_display(stem: str) -> str:
     """Title-case a filename stem, uppercasing short tokens like 'sp'."""
     return " ".join(p.upper() if len(p) <= 2 else p.title() for p in stem.split())
@@ -130,34 +112,21 @@ def _stem_display(stem: str) -> str:
 async def _build_ac(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
     q = current.lower()
     stems = _build_stems()
-    seen_names: set[str] = set()
     results: list[app_commands.Choice[str]] = []
 
-    # Game-data heroes that have a build image
-    for name in data.HERO_NAMES:
-        if _hero_has_build(name, stems) and q in name.lower():
-            results.append(app_commands.Choice(name=name, value=name))
-            seen_names.add(name)
-        if len(results) >= 25:
-            return results
-
-    # Build-only heroes not present in game data
-    covered = _covered_stems(stems)
-    for stem in sorted(stems - covered):
+    for stem in sorted(stems):
         if q in stem:
             results.append(app_commands.Choice(name=_stem_display(stem), value=stem))
         if len(results) >= 25:
             return results
 
-    # Fuzzy fallback for game-data heroes
     if q and len(results) < 25:
-        for name in data.HERO_NAMES:
-            if name in seen_names or not _hero_has_build(name, stems):
-                continue
-            if difflib.SequenceMatcher(None, q, name.lower()).ratio() > 0.45:
-                results.append(app_commands.Choice(name=name, value=name))
+        for stem in sorted(stems):
+            if q not in stem and difflib.SequenceMatcher(None, q, stem).ratio() > 0.45:
+                results.append(app_commands.Choice(name=_stem_display(stem), value=stem))
             if len(results) >= 25:
                 break
+
     return results
 
 
@@ -411,17 +380,8 @@ async def quickinfo(interaction: discord.Interaction, hero: str = None):
 @app_commands.describe(hero="Hero name")
 @app_commands.autocomplete(hero=_build_ac)
 async def cmd_build(interaction: discord.Interaction, hero: str):
-    if not data.HEROES:
-        await interaction.response.send_message(_NOT_LOADED, ephemeral=True)
-        return
-    hero_key = data.find_hero(hero)
-    if hero_key is not None:
-        display_name = data.HEROES[hero_key]["name"]
-        img_path = find_image(hero_key)
-    else:
-        # Hero not in game data — try direct filename match from builds folder
-        display_name = _stem_display(hero.lower())
-        img_path = find_image(hero.lower())
+    img_path = find_image(hero.lower())
+    display_name = _stem_display(hero.lower())
     if not img_path:
         await interaction.response.send_message(
             f"No build image available for **{display_name}**.", ephemeral=True
