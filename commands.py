@@ -187,7 +187,7 @@ def _build_embeds(hero: dict, build: dict | None) -> list[discord.Embed]:
         if len(desc) > 300:
             desc = desc[:297] + "…"
         item_val += f"\n{desc}"
-    e2.add_field(name="Personal Item", value=item_val, inline=False)
+    e2.add_field(name="Exclusive Equipment", value=item_val, inline=False)
     item_icon = data.get_item_icon_url(hero)
     if item_icon:
         e2.set_thumbnail(url=item_icon)
