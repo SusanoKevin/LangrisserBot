@@ -96,6 +96,71 @@ async def _hero_ac(interaction: discord.Interaction, current: str) -> list[app_c
     return results
 
 
+def _build_stems() -> set[str]:
+    """Return the set of lowercased filename stems in the builds folder."""
+    if not os.path.isdir(BUILD_DIR):
+        return set()
+    return {os.path.splitext(fn)[0].lower() for fn in os.listdir(BUILD_DIR)
+            if os.path.splitext(fn)[1].lower() in IMAGE_EXTS}
+
+
+def _hero_has_build(name: str, stems: set[str]) -> bool:
+    key = name.lower()
+    no_sp = key.replace(" ", "")
+    and_form = key.replace(" & ", "and").replace(" ", "")
+    return bool({key, no_sp, no_sp.replace("&", ""), and_form} & stems)
+
+
+def _covered_stems(stems: set[str]) -> set[str]:
+    """Return stems that are already matched by a hero in game data."""
+    covered = set()
+    for name in data.HERO_NAMES:
+        key = name.lower()
+        no_sp = key.replace(" ", "")
+        and_form = key.replace(" & ", "and").replace(" ", "")
+        covered |= {key, no_sp, no_sp.replace("&", ""), and_form} & stems
+    return covered
+
+
+def _stem_display(stem: str) -> str:
+    """Title-case a filename stem, uppercasing short tokens like 'sp'."""
+    return " ".join(p.upper() if len(p) <= 2 else p.title() for p in stem.split())
+
+
+async def _build_ac(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+    q = current.lower()
+    stems = _build_stems()
+    seen_names: set[str] = set()
+    results: list[app_commands.Choice[str]] = []
+
+    # Game-data heroes that have a build image
+    for name in data.HERO_NAMES:
+        if _hero_has_build(name, stems) and q in name.lower():
+            results.append(app_commands.Choice(name=name, value=name))
+            seen_names.add(name)
+        if len(results) >= 25:
+            return results
+
+    # Build-only heroes not present in game data
+    covered = _covered_stems(stems)
+    for stem in sorted(stems - covered):
+        if q in stem:
+            results.append(app_commands.Choice(name=_stem_display(stem), value=stem))
+        if len(results) >= 25:
+            return results
+
+    # Fuzzy fallback for game-data heroes
+    if q and len(results) < 25:
+        for name in data.HERO_NAMES:
+            if name in seen_names or not _hero_has_build(name, stems):
+                continue
+            if difflib.SequenceMatcher(None, q, name.lower()).ratio() > 0.45:
+                results.append(app_commands.Choice(name=name, value=name))
+            if len(results) >= 25:
+                break
+    return results
+
+
 async def _faction_ac(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
     q = current.lower()
     seen: set[str] = set()
@@ -223,7 +288,7 @@ def _bonds_embeds(hero_name: str, bond: dict, hero: dict) -> list[discord.Embed]
 
     # Shared url causes Discord to render all image embeds as a side-by-side gallery.
     # Blank description lines push the bond fields below the thumbnail rather than beside it.
-    e1 = discord.Embed(title=f"{hero_name} — Bonds", color=0x00BFFF, url=_GALLERY_URL,
+    e1 = discord.Embed(title=hero_name, color=0x00BFFF, url=_GALLERY_URL,
                        description="​\n​\n​")
     portrait = data.get_portrait_url(hero)
     if portrait:
@@ -247,19 +312,19 @@ def _bonds_embeds(hero_name: str, bond: dict, hero: dict) -> list[discord.Embed]
 
     if def_first and (def_hero := data.HEROES.get(def_first)):
         e_def = discord.Embed(color=0x00BFFF, url=_GALLERY_URL)
-        e_def.set_image(url=data.get_portrait_url(def_hero))
+        e_def.set_image(url=data.get_chibi_url(def_hero))
         embeds.append(e_def)
 
     if atk_first and atk_first != def_first and (atk_hero := data.HEROES.get(atk_first)):
         e_atk = discord.Embed(color=0x00BFFF, url=_GALLERY_URL)
-        e_atk.set_image(url=data.get_portrait_url(atk_hero))
+        e_atk.set_image(url=data.get_chibi_url(atk_hero))
         embeds.append(e_atk)
 
     return embeds
 
 
 def _faction_embed(faction_name: str, heroes: list[dict], faction_code: str = "") -> discord.Embed:
-    embed = discord.Embed(title=f"{faction_name} — Heroes", color=0x2E8B57)
+    embed = discord.Embed(title=faction_name, color=0x2E8B57)
     if faction_code:
         embed.set_thumbnail(url=data.get_faction_icon_url(faction_code))
     by_rarity: dict[str, list[str]] = {}
@@ -364,23 +429,25 @@ async def quickinfo(interaction: discord.Interaction, hero: str = None):
 
 @tree.command(name="build", description="Show the build image for a Langrisser hero")
 @app_commands.describe(hero="Hero name")
-@app_commands.autocomplete(hero=_hero_ac)
+@app_commands.autocomplete(hero=_build_ac)
 async def cmd_build(interaction: discord.Interaction, hero: str):
     if not data.HEROES:
         await interaction.response.send_message(_NOT_LOADED, ephemeral=True)
         return
     hero_key = data.find_hero(hero)
-    if hero_key is None:
-        await interaction.response.send_message(f"Hero `{hero}` not found.", ephemeral=True)
-        return
-    hero_info = data.HEROES[hero_key]
-    img_path = find_image(hero_key)
+    if hero_key is not None:
+        display_name = data.HEROES[hero_key]["name"]
+        img_path = find_image(hero_key)
+    else:
+        # Hero not in game data — try direct filename match from builds folder
+        display_name = _stem_display(hero.lower())
+        img_path = find_image(hero.lower())
     if not img_path:
         await interaction.response.send_message(
-            f"No build image available for **{hero_info['name']}**.", ephemeral=True
+            f"No build image available for **{display_name}**.", ephemeral=True
         )
         return
-    embed = discord.Embed(title=f"{hero_info['name']} — Build", color=0x4169E1)
+    embed = discord.Embed(title=display_name, color=0x4169E1)
     embed.set_image(url=f"attachment://{os.path.basename(img_path)}")
     embed.set_footer(text=_FOOTER)
     await interaction.response.send_message(embed=embed, file=discord.File(img_path))
