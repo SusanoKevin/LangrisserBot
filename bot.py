@@ -217,9 +217,9 @@ def _bonds_embeds(hero_name: str, bond: dict, hero: dict) -> list[discord.Embed]
     if portrait:
         e1.set_thumbnail(url=portrait)
 
-    # Embed 1 main image: DEF partner portrait (falls back to ATK if no DEF)
-    primary = def_partner or atk_partner
-    if primary and (h := data.HEROES.get(primary.lower())):
+    # Embed 1 main image: first DEF partner portrait (falls back to first ATK partner)
+    primary_key = (def_partner or atk_partner or "").split(",")[0].strip().lower()
+    if primary_key and (h := data.HEROES.get(primary_key)):
         e1.set_image(url=data.get_portrait_url(h))
 
     if def_partner:
@@ -235,9 +235,11 @@ def _bonds_embeds(hero_name: str, bond: dict, hero: dict) -> list[discord.Embed]
     e1.set_footer(text=_FOOTER)
 
     embeds = [e1]
-    # Embed 2: ATK partner portrait when both partners exist and are different people
-    if def_partner and atk_partner and def_partner != atk_partner:
-        if atk_hero := data.HEROES.get(atk_partner.lower()):
+    # Embed 2: first ATK partner portrait when both partners exist and are different people
+    if def_partner and atk_partner:
+        def_first = def_partner.split(",")[0].strip().lower()
+        atk_first = atk_partner.split(",")[0].strip().lower()
+        if def_first != atk_first and (atk_hero := data.HEROES.get(atk_first)):
             e2 = discord.Embed(color=0x00BFFF)
             e2.set_image(url=data.get_portrait_url(atk_hero))
             embeds.append(e2)

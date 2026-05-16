@@ -165,15 +165,17 @@ def load_heroes() -> None:
 
 def load_bonds() -> None:
     global BONDS
-    tr = lambda s: _RU_TO_EN.get(s.strip().lower(), s.strip())
+    tr  = lambda s: _RU_TO_EN.get(s.strip().lower(), s.strip())
+    # Bond partner fields can contain comma-separated lists; translate each name individually
+    trp = lambda s: (", ".join(tr(p) for p in s.split(",") if p.strip())) if s else None
     rows = _extract_array(_fetch("bondDat_en.js"), "bondDat")
     bonds: dict[str, dict] = {}
     for row in rows[1:]:
         name_en = tr(row[0])
         bonds[name_en.lower()] = {
             "name":           name_en,
-            "def_bond":       tr(row[1]) if row[1] else None,
-            "atk_bond":       tr(row[2]) if row[2] else None,
+            "def_bond":       trp(row[1]),
+            "atk_bond":       trp(row[2]),
             "needed_for_def": _split_ru(row[3], _RU_TO_EN),
             "needed_for_atk": _split_ru(row[4], _RU_TO_EN),
         }
