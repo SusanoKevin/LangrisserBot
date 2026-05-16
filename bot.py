@@ -58,10 +58,16 @@ tree    = app_commands.CommandTree(client)
 # ---------------------------------------------------------------------------
 
 def find_image(hero_key: str) -> str | None:
-    for ext in IMAGE_EXTS:
-        path = os.path.join(BUILD_DIR, hero_key + ext)
-        if os.path.isfile(path):
-            return path
+    if not os.path.isdir(BUILD_DIR):
+        return None
+    no_sp = hero_key.replace(" ", "")
+    and_form = hero_key.lower().replace(" & ", "and").replace(" ", "")
+    # Build a set of lowercase candidate stems to match against (case-insensitive)
+    candidates = {hero_key.lower(), no_sp.lower(), no_sp.replace("&", "").lower(), and_form}
+    for fn in os.listdir(BUILD_DIR):
+        base, ext = os.path.splitext(fn)
+        if ext.lower() in IMAGE_EXTS and base.lower() in candidates:
+            return os.path.join(BUILD_DIR, fn)
     return None
 
 
@@ -353,6 +359,30 @@ async def quickinfo(interaction: discord.Interaction, hero: str = None):
             return
 
     await interaction.response.send_message(embeds=embeds)
+
+
+@tree.command(name="build", description="Show the build image for a Langrisser hero")
+@app_commands.describe(hero="Hero name")
+@app_commands.autocomplete(hero=_hero_ac)
+async def cmd_build(interaction: discord.Interaction, hero: str):
+    if not data.HEROES:
+        await interaction.response.send_message(_NOT_LOADED, ephemeral=True)
+        return
+    hero_key = data.find_hero(hero)
+    if hero_key is None:
+        await interaction.response.send_message(f"Hero `{hero}` not found.", ephemeral=True)
+        return
+    hero_info = data.HEROES[hero_key]
+    img_path = find_image(hero_key)
+    if not img_path:
+        await interaction.response.send_message(
+            f"No build image available for **{hero_info['name']}**.", ephemeral=True
+        )
+        return
+    embed = discord.Embed(title=f"{hero_info['name']} — Build", color=0x4169E1)
+    embed.set_image(url=f"attachment://{os.path.basename(img_path)}")
+    embed.set_footer(text=_FOOTER)
+    await interaction.response.send_message(embed=embed, file=discord.File(img_path))
 
 
 @tree.command(name="bonds", description="Show bond information for a hero")
