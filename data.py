@@ -68,6 +68,12 @@ _ARMOR_EN = {
     "водная": "Aqua", "обычная": "Normal", "тканевая": "Cloth",
 }
 
+# Heroes absent from heroesDat_en.js — supplement until bannernews adds them upstream
+_RU_SUPPLEMENT = {
+    "гибискус": "Broken-Winged Bird",
+    "рандель":  "Randele",
+}
+
 HEROES:     dict[str, dict] = {}
 BONDS:      dict[str, dict] = {}
 SOLDIERS:   dict[str, dict] = {}
@@ -159,7 +165,7 @@ def load_heroes() -> None:
             "story":         STORY_MAP.get(row[6], row[6]),
         }
         ru_map[name_ru.lower()] = name_en
-    HEROES, HERO_NAMES, _RU_TO_EN = heroes, sorted(h["name"] for h in heroes.values()), ru_map
+    HEROES, HERO_NAMES, _RU_TO_EN = heroes, sorted(h["name"] for h in heroes.values()), {**_RU_SUPPLEMENT, **ru_map}
     logger.info(f"Loaded {len(HEROES)} heroes")
 
 
