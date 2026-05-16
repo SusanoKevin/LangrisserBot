@@ -30,13 +30,11 @@ pip install -r requirements.txt
 
 ## Architecture
 
-**`bot.py`** is the main entry point. It creates the Discord client, calls `commands.register(tree)` to attach all slash commands, loads game data on `on_ready`, and runs an `auto_refresh` background loop every 4 hours that calls `data.check_for_updates()` to detect upstream changes and optionally announce new heroes to a configured channel.
+**`bot.py`** is the main entry point. It creates the Discord client, registers slash commands directly (see below), loads game data on `on_ready`, and runs an `auto_refresh` background loop every 4 hours that calls `data.check_for_updates()` to detect upstream changes and optionally announce new heroes to a configured channel.
 
-**`commands.py`** defines all five slash commands (`/hero`, `/build`, `/troop`, `/faction`, `/bonds`) inside a single `register(tree)` function. Each command has its own autocomplete callback and embed builder. The `/build` command checks for a local image override (via `data.find_build_image`) before falling back to structured data from `data.BUILDS`.
+**`commands.py`** defines all five slash commands (`/hero`, `/build`, `/troop`, `/faction`, `/bonds`) inside a single `register(tree)` function, along with autocomplete callbacks and embed builders. To activate these commands, call `commands.register(tree)` from `bot.py` after creating the `CommandTree`.
 
-**`data.py`** is the data layer. It fetches three JS files from the bannernews GitHub repo at startup (`heroesDat_en.js`, `bondDat_en.js`, `soldDat_en.js`, `en_data.js`) using `_extract_array()` to parse embedded JS arrays as JSON. All game data lives in module-level dicts (`HEROES`, `BONDS`, `SOLDIERS`, `BUILDS`, `HERO_NAMES`). Hero keys are always lowercase English names. Russian↔English name translation maps (`_RU_TO_EN`, `_SOLDIER_RU_EN`) are built during `load_heroes()` and `load_soldiers()`, and must be populated before `load_bonds()` or `load_builds()` are called — the order in `load_all()` matters.
-
-**`Discordbot.py`** is a legacy standalone prototype. It has no data fetching — it only serves local images from `builds/`. It is not the active bot; `bot.py` is.
+**`data.py`** is the data layer. It fetches JS files from the bannernews GitHub repo at startup (`heroesDat_en.js`, `bondDat_en.js`, `soldDat_en.js`, `en_data.js`) using `_extract_array()` to parse embedded JS arrays as JSON. All game data lives in module-level dicts (`HEROES`, `BONDS`, `SOLDIERS`, `BUILDS`, `HERO_NAMES`). Hero keys are always lowercase English names. Russian↔English name translation maps (`_RU_TO_EN`, `_SOLDIER_RU_EN`) are built during `load_heroes()` and `load_soldiers()`, and must be populated before `load_bonds()` or `load_builds()` are called — the order in `load_all()` matters.
 
 ## Adding a new slash command
 

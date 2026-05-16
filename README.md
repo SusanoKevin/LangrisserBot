@@ -1,12 +1,12 @@
 # LangrisserBot
 
-A Discord bot for [Langrisser Mobile](https://langrisser.zlongame.com/main.html) that provides hero, build, troop, faction, and bond lookups via slash commands. Game data is pulled live from the bannernews community repository and refreshed automatically every 4 hours.
+A Discord bot for [Langrisser Mobile](https://langrisser.zlongame.com/main.html) that provides hero info, build, faction, and bond lookups via slash commands. Game data is pulled live from the bannernews community repository and refreshed automatically every 4 hours.
 
 ## Commands
 
 | Command | Description |
 |---|---|
-| `/hero [name]` | Hero stats, faction, rarity, and class art. Omit name to list all heroes. |
+| `/hero [name]` | Hero stats, faction, rarity, and portrait. Omit name to list all heroes. |
 | `/build <name>` | Talent, personal item, recommended soldiers, and gear restrictions. |
 | `/troop [name]` | Troop stats and which heroes use them. Omit name to list all troops. |
 | `/faction <name>` | All heroes in a faction grouped by rarity. |
