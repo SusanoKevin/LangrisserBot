@@ -279,48 +279,28 @@ def _quickinfo_embeds(hero: dict, build: dict | None) -> list[discord.Embed]:
     return [e1, e2]
 
 
-_GALLERY_URL = "https://raw.githubusercontent.com/bannernews/langrisser/master/"
-
-
 def _bonds_embeds(hero_name: str, bond: dict, hero: dict) -> list[discord.Embed]:
     def_partner = bond.get("def_bond")
     atk_partner = bond.get("atk_bond")
 
-    # Shared url causes Discord to render all image embeds as a side-by-side gallery.
-    # Blank description lines push the bond fields below the thumbnail rather than beside it.
-    e1 = discord.Embed(title=hero_name, color=0x00BFFF, url=_GALLERY_URL,
-                       description="​\n​\n​")
+    embed = discord.Embed(title=hero_name, color=0x00BFFF)
     portrait = data.get_portrait_url(hero)
     if portrait:
-        e1.set_thumbnail(url=portrait)
+        embed.set_thumbnail(url=portrait)
 
     if def_partner:
-        e1.add_field(name="DEF Bond Partner", value=def_partner, inline=True)
+        embed.add_field(name="DEF Bond Partner", value=def_partner, inline=True)
     if atk_partner:
-        e1.add_field(name="ATK Bond Partner", value=atk_partner, inline=True)
+        embed.add_field(name="ATK Bond Partner", value=atk_partner, inline=True)
     if bond.get("needed_for_def"):
-        e1.add_field(name="Needed for DEF bonds by", value=", ".join(bond["needed_for_def"])[:1024], inline=False)
+        embed.add_field(name="Needed for DEF bonds by", value=", ".join(bond["needed_for_def"])[:1024], inline=False)
     if bond.get("needed_for_atk"):
-        e1.add_field(name="Needed for ATK bonds by", value=", ".join(bond["needed_for_atk"])[:1024], inline=False)
+        embed.add_field(name="Needed for ATK bonds by", value=", ".join(bond["needed_for_atk"])[:1024], inline=False)
     if not any([def_partner, atk_partner, bond.get("needed_for_def"), bond.get("needed_for_atk")]):
-        e1.description = "No bond heroes needed."
-    e1.set_footer(text=_FOOTER)
+        embed.description = "No bond information available."
+    embed.set_footer(text=_FOOTER)
 
-    embeds = [e1]
-    def_first = (def_partner or "").split(",")[0].strip().lower()
-    atk_first = (atk_partner or "").split(",")[0].strip().lower()
-
-    if def_first and (def_hero := data.HEROES.get(def_first)):
-        e_def = discord.Embed(color=0x00BFFF, url=_GALLERY_URL)
-        e_def.set_image(url=data.get_chibi_url(def_hero))
-        embeds.append(e_def)
-
-    if atk_first and atk_first != def_first and (atk_hero := data.HEROES.get(atk_first)):
-        e_atk = discord.Embed(color=0x00BFFF, url=_GALLERY_URL)
-        e_atk.set_image(url=data.get_chibi_url(atk_hero))
-        embeds.append(e_atk)
-
-    return embeds
+    return [embed]
 
 
 def _faction_embed(faction_name: str, heroes: list[dict], faction_code: str = "") -> discord.Embed:
