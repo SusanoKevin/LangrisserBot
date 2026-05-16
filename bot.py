@@ -208,19 +208,19 @@ def _quickinfo_embeds(hero: dict, build: dict | None) -> list[discord.Embed]:
     return [e1, e2]
 
 
+_GALLERY_URL = "https://raw.githubusercontent.com/bannernews/langrisser/master/"
+
 def _bonds_embeds(hero_name: str, bond: dict, hero: dict) -> list[discord.Embed]:
     def_partner = bond.get("def_bond")
     atk_partner = bond.get("atk_bond")
 
-    e1 = discord.Embed(title=f"{hero_name} — Bonds", color=0x00BFFF)
+    # Shared url causes Discord to render all image embeds as a side-by-side gallery.
+    # Blank description lines push the bond fields below the thumbnail rather than beside it.
+    e1 = discord.Embed(title=f"{hero_name} — Bonds", color=0x00BFFF, url=_GALLERY_URL,
+                       description="​\n​\n​")
     portrait = data.get_portrait_url(hero)
     if portrait:
         e1.set_thumbnail(url=portrait)
-
-    # Embed 1 main image: first DEF partner portrait (falls back to first ATK partner)
-    primary_key = (def_partner or atk_partner or "").split(",")[0].strip().lower()
-    if primary_key and (h := data.HEROES.get(primary_key)):
-        e1.set_image(url=data.get_portrait_url(h))
 
     if def_partner:
         e1.add_field(name="DEF Bond Partner", value=def_partner, inline=True)
@@ -235,14 +235,19 @@ def _bonds_embeds(hero_name: str, bond: dict, hero: dict) -> list[discord.Embed]
     e1.set_footer(text=_FOOTER)
 
     embeds = [e1]
-    # Embed 2: first ATK partner portrait when both partners exist and are different people
-    if def_partner and atk_partner:
-        def_first = def_partner.split(",")[0].strip().lower()
-        atk_first = atk_partner.split(",")[0].strip().lower()
-        if def_first != atk_first and (atk_hero := data.HEROES.get(atk_first)):
-            e2 = discord.Embed(color=0x00BFFF)
-            e2.set_image(url=data.get_portrait_url(atk_hero))
-            embeds.append(e2)
+    def_first = (def_partner or "").split(",")[0].strip().lower()
+    atk_first = (atk_partner or "").split(",")[0].strip().lower()
+
+    if def_first and (def_hero := data.HEROES.get(def_first)):
+        e_def = discord.Embed(color=0x00BFFF, url=_GALLERY_URL)
+        e_def.set_image(url=data.get_portrait_url(def_hero))
+        embeds.append(e_def)
+
+    if atk_first and atk_first != def_first and (atk_hero := data.HEROES.get(atk_first)):
+        e_atk = discord.Embed(color=0x00BFFF, url=_GALLERY_URL)
+        e_atk.set_image(url=data.get_portrait_url(atk_hero))
+        embeds.append(e_atk)
+
     return embeds
 
 
