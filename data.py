@@ -3,21 +3,22 @@ import json
 import difflib
 import logging
 import urllib.parse
-import requests
+import urllib.request
 
 logger = logging.getLogger(__name__)
 
 _BASE_URL          = "https://raw.githubusercontent.com/bannernews/langrisser/master/js/"
 _GITHUB_API        = "https://api.github.com/repos/bannernews/langrisser/commits"
-_IMG              = "https://bannernews.github.io/langrisser/images/"
-_PORTRAIT_BASE    = _IMG + "head/"
-_HERO_PAGE_BASE   = "https://bannernews.github.io/langrisser/hero_en.html?name="
-_CLASS_ICON_BASE  = _IMG + "classes/"
+_IMG               = "https://bannernews.github.io/langrisser/images/"
+_PORTRAIT_BASE     = _IMG + "head/"
+_HERO_PAGE_BASE    = "https://bannernews.github.io/langrisser/hero_en.html?name="
+_CLASS_ICON_BASE   = _IMG + "classes/"
 _SOLDIER_ICON_BASE = _IMG + "soldIcons/all/"
 _FACTION_ICON_BASE = _IMG + "hero_filter/factions/"
 _CHIBI_BASE        = _IMG + "heroes/heroes_list/"
 _ITEM_ICON_BASE    = _IMG + "itemIcons/all/"
 _TALENT_ICON_BASE  = _IMG + "skills/personal/"
+_UA                = {"User-Agent": "KillerWhalesBot"}
 
 FACTION_MAP = {
     "ЛС":   "Legion of Glory",
@@ -34,7 +35,7 @@ FACTION_MAP = {
     "ГВ":   "Heroes of Time",
 }
 
-_GENDER = {"М", "Ж"}
+_GENDER     = {"М", "Ж"}
 _SKIP_CODES = {"ФБ"}
 
 _MOVE_TYPE_EN = {
@@ -56,13 +57,6 @@ STORY_MAP = {
     "Мил":  "Militia",
 }
 
-# en_data.js field indices (confirmed from file header comment)
-# 0-name 1-factions 2-rank 3-forge 4-sp 5-story
-# 6-talent_name 7-talent_desc
-# 8-item_name 9-item_type 10-item_hp 11-item_atk 12-item_int 13-item_def 14-item_mdef 15-item_skill 16-item_desc
-# 17-unique_skill 18-sold_hp% 19-sold_atk% 20-sold_def% 21-sold_mdef%
-# 22-soldiers 23-soldiers_sp 24-weapons 25-armor_type
-
 _WEAPON_EN = {
     "топор": "Axe", "копье": "Spear", "меч": "Sword", "лук": "Bow",
     "жезл": "Staff", "книга": "Tome", "кинжал": "Dagger", "молот": "Hammer",
@@ -74,15 +68,14 @@ _ARMOR_EN = {
     "водная": "Aqua", "обычная": "Normal", "тканевая": "Cloth",
 }
 
-# Module-level data stores
 HEROES:     dict[str, dict] = {}
 BONDS:      dict[str, dict] = {}
 SOLDIERS:   dict[str, dict] = {}
 BUILDS:     dict[str, dict] = {}
 HERO_NAMES: list[str]       = []
 
-_RU_TO_EN:      dict[str, str] = {}   # Russian hero name -> English
-_SOLDIER_RU_EN: dict[str, str] = {}   # Russian soldier name -> English
+_RU_TO_EN:      dict[str, str] = {}
+_SOLDIER_RU_EN: dict[str, str] = {}
 _last_commit_sha: str = ""
 
 
@@ -91,13 +84,13 @@ _last_commit_sha: str = ""
 # ---------------------------------------------------------------------------
 
 def _fetch(filename: str) -> str:
-    r = requests.get(_BASE_URL + filename, timeout=15)
-    r.raise_for_status()
-    return r.text
+    req = urllib.request.Request(_BASE_URL + filename, headers=_UA)
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return r.read().decode()
 
 
 def _extract_array(js: str, var_name: str) -> list:
-    """Extract a JS array assigned to var_name and parse it as JSON."""
+    """Locate a JS variable assignment and extract its array value as JSON."""
     m = re.search(rf'var\s+{re.escape(var_name)}\s*=', js)
     if not m:
         raise ValueError(f"Variable '{var_name}' not found in JS")
@@ -134,12 +127,10 @@ def _parse_factions(raw: str) -> tuple[list[str], list[str], str | None]:
 
 
 def _field(row: list, i: int) -> str:
-    """Safely get a string field from a row."""
     return row[i].strip() if i < len(row) and row[i] else ""
 
 
 def _split_ru(s: str, tr: dict[str, str]) -> list[str]:
-    """Split a comma-separated Russian string and translate each term."""
     return [tr.get(p.strip().lower(), p.strip()) for p in s.split(",") if p.strip()] if s else []
 
 
@@ -150,55 +141,41 @@ def _split_ru(s: str, tr: dict[str, str]) -> list[str]:
 def load_heroes() -> None:
     global HEROES, HERO_NAMES, _RU_TO_EN
     rows = _extract_array(_fetch("heroesDat_en.js"), "heroesDat")
-    heroes: dict[str, dict] = {}
-    ru_map: dict[str, str] = {}
+    heroes, ru_map = {}, {}
     for row in rows[1:]:
-        name_en = row[1].strip()
-        if not name_en:
+        if not (name_en := row[1].strip()):
             continue
         name_ru = row[0].strip()
         factions, faction_codes, gender = _parse_factions(row[2])
-        key = name_en.lower()
-        heroes[key] = {
+        heroes[name_en.lower()] = {
             "name":          name_en,
             "name_ru":       name_ru,
             "factions":      factions,
             "faction_codes": faction_codes,
             "gender":        gender,
-            "rarity":   row[3],
-            "forge":    row[4] == "forge",
-            "sp":       row[5] == "SP",
-            "story":    STORY_MAP.get(row[6], row[6]),
+            "rarity":        row[3],
+            "forge":         row[4] == "forge",
+            "sp":            row[5] == "SP",
+            "story":         STORY_MAP.get(row[6], row[6]),
         }
         ru_map[name_ru.lower()] = name_en
-    HEROES     = heroes
-    HERO_NAMES = sorted(h["name"] for h in heroes.values())
-    _RU_TO_EN  = ru_map
+    HEROES, HERO_NAMES, _RU_TO_EN = heroes, sorted(h["name"] for h in heroes.values()), ru_map
     logger.info(f"Loaded {len(HEROES)} heroes")
 
 
 def load_bonds() -> None:
     global BONDS
-
-    def _tr(s: str) -> str:
-        s = s.strip()
-        return _RU_TO_EN.get(s.lower(), s)
-
-    def _tr_list(s: str) -> list[str]:
-        return [_tr(n) for n in s.split(",") if n.strip()] if s else []
-
+    tr = lambda s: _RU_TO_EN.get(s.strip().lower(), s.strip())
     rows = _extract_array(_fetch("bondDat_en.js"), "bondDat")
     bonds: dict[str, dict] = {}
     for row in rows[1:]:
-        name_en = _tr(row[0])
-        key = name_en.lower()
-        bonds[key] = {
+        name_en = tr(row[0])
+        bonds[name_en.lower()] = {
             "name":           name_en,
-            "def_bond":       _tr(row[1]) if row[1] else None,
-            "atk_bond":       _tr(row[2]) if row[2] else None,
-            "needed_for_def": _tr_list(row[3]),
-            "needed_for_atk": _tr_list(row[4]),
-            "rarity":         row[6],
+            "def_bond":       tr(row[1]) if row[1] else None,
+            "atk_bond":       tr(row[2]) if row[2] else None,
+            "needed_for_def": _split_ru(row[3], _RU_TO_EN),
+            "needed_for_atk": _split_ru(row[4], _RU_TO_EN),
         }
     BONDS = bonds
     logger.info(f"Loaded {len(BONDS)} bond entries")
@@ -207,16 +184,13 @@ def load_bonds() -> None:
 def load_soldiers() -> None:
     global SOLDIERS, _SOLDIER_RU_EN
     rows = _extract_array(_fetch("soldDat_en.js"), "soldDat")
-    soldiers: dict[str, dict] = {}
-    ru_en: dict[str, str] = {}
+    soldiers, ru_en = {}, {}
     for row in rows[1:]:
-        name_en = row[1].strip()
-        if not name_en:
+        if not (name_en := row[1].strip()):
             continue
         name_ru = row[0].strip()
         ru_en[name_ru.lower()] = name_en
-        key = name_en.lower()
-        soldiers[key] = {
+        soldiers[name_en.lower()] = {
             "name":        name_en,
             "name_ru":     name_ru,
             "hp":          row[2],
@@ -227,81 +201,50 @@ def load_soldiers() -> None:
             "range":       row[7],
             "desc":        row[9],
             "troop_class": row[10],
-            "heroes":      [_RU_TO_EN.get(h.strip().lower(), h.strip()) for h in row[11].split(",") if h.strip()] if row[11] else [],
-            "move_type":   _MOVE_TYPE_EN.get(row[12].strip(), row[12].strip()) if len(row) > 12 else "",
+            "heroes":      _split_ru(row[11], _RU_TO_EN),
+            "move_type":   _MOVE_TYPE_EN.get(v := _field(row, 12), v),
         }
-    SOLDIERS       = soldiers
-    _SOLDIER_RU_EN = ru_en
+    SOLDIERS, _SOLDIER_RU_EN = soldiers, ru_en
     logger.info(f"Loaded {len(SOLDIERS)} soldiers")
 
 
 def load_builds() -> None:
-    """Parse en_data.js for per-hero talent, personal item, and troop build info."""
     global BUILDS
     rows = _extract_array(_fetch("en_data.js"), "dataTable")
-
-    # Fetch Russian data.js to get Russian talent names (used for icon filenames)
+    # data.js (Russian) is the source of talent names used as icon filenames
     ru_talent: dict[str, str] = {}
     try:
         rows_ru = _extract_array(_fetch("data.js"), "dataTable")
         for row_ru in rows_ru[1:]:
-            name_ru = _field(row_ru, 0)
-            if name_ru:
+            if name_ru := _field(row_ru, 0):
                 ru_talent[name_ru] = _field(row_ru, 6)
     except Exception as e:
         logger.warning(f"Could not load Russian talent names: {e}")
-
     builds: dict[str, dict] = {}
     for row in rows[1:]:
-        name_ru = _field(row, 0)
-        if not name_ru:
+        if not (name_ru := _field(row, 0)):
             continue
         name_en = _RU_TO_EN.get(name_ru.lower(), name_ru)
-        key = name_en.lower()
-
-        # Soldier stat bonuses (stored as plain integers like "10", "35")
-        def bonus(i: int) -> str:
-            v = _field(row, i)
-            return f"+{v}%" if v else ""
-
-        # Translate Russian soldier names using the _SOLDIER_RU_EN map
-        soldiers_raw = _field(row, 22)
-        soldiers_en  = _split_ru(soldiers_raw, _SOLDIER_RU_EN)
-
-        sp_soldiers_raw = _field(row, 23)
-        sp_soldiers_en  = _split_ru(sp_soldiers_raw, _SOLDIER_RU_EN)
-
-        weapons_raw = _field(row, 24)
-        weapons_en  = _split_ru(weapons_raw, _WEAPON_EN)
-
-        armor_raw = _field(row, 25)
-        armor_en  = _ARMOR_EN.get(armor_raw, armor_raw) if armor_raw else ""
-
-        # Personal item stat string — only include non-empty stats
-        item_stat_parts = []
-        for label, idx in [("HP", 10), ("ATK", 11), ("INT", 12), ("DEF", 13), ("MDEF", 14), ("SKILL", 15)]:
-            v = _field(row, idx)
-            if v:
-                item_stat_parts.append(f"{label} +{v}")
-
-        builds[key] = {
+        builds[name_en.lower()] = {
             "name":           name_en,
             "talent_name":    _field(row, 6),
             "talent_name_ru": ru_talent.get(name_ru, ""),
             "talent_desc":    _field(row, 7),
             "item_name":      _field(row, 8),
-            "item_type":      _field(row, 9),
-            "item_stats":     ", ".join(item_stat_parts),
+            "item_stats":     ", ".join(
+                f"{lbl} +{v}"
+                for lbl, idx in [("HP",10),("ATK",11),("INT",12),("DEF",13),("MDEF",14),("SKILL",15)]
+                if (v := _field(row, idx))
+            ),
             "item_desc":      _field(row, 16),
-            "unique_skill":   _field(row, 17),
-            "sold_hp":        bonus(18),
-            "sold_atk":       bonus(19),
-            "sold_def":       bonus(20),
-            "sold_mdef":      bonus(21),
-            "soldiers":       soldiers_en,
-            "soldiers_sp":    sp_soldiers_en,
-            "weapons":        weapons_en,
-            "armor":          armor_en,
+            "sold_hp":        f"+{hp}%" if (hp := _field(row, 18)) else "",
+            "sold_atk":       f"+{atk}%" if (atk := _field(row, 19)) else "",
+            "sold_def":       f"+{df}%" if (df := _field(row, 20)) else "",
+            "sold_mdef":      f"+{mdef}%" if (mdef := _field(row, 21)) else "",
+            "soldiers":       _split_ru(_field(row, 22), _SOLDIER_RU_EN),
+            "soldiers_sp":    _split_ru(_field(row, 23), _SOLDIER_RU_EN),
+            "weapons":        _split_ru(_field(row, 24), _WEAPON_EN),
+            "armor":          _ARMOR_EN.get(ar, ar) if (ar := _field(row, 25)) else "",
         }
     BUILDS = builds
     logger.info(f"Loaded {len(BUILDS)} build entries")
@@ -326,53 +269,40 @@ def load_all() -> None:
 
 def check_for_updates() -> tuple[bool, list[str]]:
     """
-    Poll the GitHub API for the latest commit.
-    Returns (data_was_reloaded, list_of_new_hero_names).
-    On the very first call just stores the SHA and returns (False, []).
+    Poll GitHub for the latest commit SHA. First call seeds the baseline and
+    returns (False, []). Subsequent calls reload all data when the SHA changes.
     """
     global _last_commit_sha
-
-    r = requests.get(_GITHUB_API, params={"per_page": 1}, timeout=10)
-    r.raise_for_status()
-    sha = r.json()[0]["sha"]
-
+    req = urllib.request.Request(f"{_GITHUB_API}?per_page=1", headers=_UA)
+    with urllib.request.urlopen(req, timeout=10) as r:
+        sha = json.loads(r.read())[0]["sha"]
     if not _last_commit_sha:
         _last_commit_sha = sha
         return False, []
-
     if sha == _last_commit_sha:
         return False, []
-
-    # New commit — reload and diff
     old_names = set(HERO_NAMES)
     _last_commit_sha = sha
     load_all()
-    new_names = [n for n in HERO_NAMES if n not in old_names]
-    return True, new_names
+    return True, [n for n in HERO_NAMES if n not in old_names]
 
 
 # ---------------------------------------------------------------------------
-# Portrait URL
+# URL helpers
 # ---------------------------------------------------------------------------
 
 def get_portrait_url(hero: dict) -> str:
     name_ru = hero.get("name_ru", "")
-    if not name_ru:
-        return ""
-    return _PORTRAIT_BASE + urllib.parse.quote(name_ru + ".png")
+    return (_PORTRAIT_BASE + urllib.parse.quote(name_ru + ".png")) if name_ru else ""
 
 
 def get_hero_page_url(hero: dict) -> str:
     name_ru = hero.get("name_ru", "")
-    if not name_ru:
-        return ""
-    return _HERO_PAGE_BASE + urllib.parse.quote(name_ru)
+    return (_HERO_PAGE_BASE + urllib.parse.quote(name_ru)) if name_ru else ""
 
 
 def get_class_icon_url(troop_class: str) -> str:
-    if not troop_class:
-        return ""
-    return _CLASS_ICON_BASE + troop_class.lower() + ".png"
+    return (_CLASS_ICON_BASE + troop_class.lower() + ".png") if troop_class else ""
 
 
 def get_soldier_icon_url(soldier: dict) -> str:
@@ -404,10 +334,6 @@ def get_talent_icon_url(build: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Local build-image override (optional — drop an image in builds/ to override)
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
 # Matching helpers
 # ---------------------------------------------------------------------------
 
@@ -432,10 +358,7 @@ def best_match(query: str, candidates: list[str]) -> str | None:
 
 
 def find_hero(query: str) -> str | None:
-    """Return the HEROES dict key (lowercase English name) for a user query."""
     if not HEROES:
         return None
     q = query.strip().lower()
-    if q in HEROES:
-        return q
-    return best_match(query, list(HEROES.keys()))
+    return q if q in HEROES else best_match(query, list(HEROES.keys()))

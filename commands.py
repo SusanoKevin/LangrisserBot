@@ -35,19 +35,6 @@ _SITE_URL = "https://bannernews.github.io/langrisser/heroes_en.html"
 _NOT_LOADED = "Game data is still loading — try again in a moment."
 
 
-def _chunk_lines(lines: list[str], max_chars: int = 1800) -> list[str]:
-    chunks, current, size = [], [], 0
-    for line in lines:
-        if size + len(line) + 1 > max_chars and current:
-            chunks.append("\n".join(current))
-            current, size = [], 0
-        current.append(line)
-        size += len(line) + 1
-    if current:
-        chunks.append("\n".join(current))
-    return chunks
-
-
 # ---------------------------------------------------------------------------
 # Autocomplete callbacks
 # ---------------------------------------------------------------------------
@@ -104,14 +91,12 @@ def _hero_embed(hero: dict) -> discord.Embed:
         color=RARITY_COLOR.get(hero["rarity"], 0x4169E1),
         url=_SITE_URL,
     )
-    # Portrait thumbnail + chibi main image
     portrait = data.get_portrait_url(hero)
     if portrait:
         embed.set_thumbnail(url=portrait)
     chibi = data.get_chibi_url(hero)
     if chibi:
         embed.set_image(url=chibi)
-    # Faction field with icon in footer
     factions_str = ", ".join(hero["factions"]) if hero.get("factions") else "Unknown"
     embed.add_field(name="Faction(s)", value=factions_str, inline=True)
     codes = hero.get("faction_codes", [])
@@ -152,7 +137,6 @@ def _build_embeds(hero: dict, build: dict | None) -> list[discord.Embed]:
         e1.set_footer(text=_FOOTER)
         return [e1]
 
-    # Talent
     if build.get("talent_name"):
         talent_val = build["talent_name"]
         if build.get("talent_desc"):
@@ -165,7 +149,6 @@ def _build_embeds(hero: dict, build: dict | None) -> list[discord.Embed]:
     if talent_icon:
         e1.set_image(url=talent_icon)
 
-    # Soldier bonuses
     bonuses = []
     for label, key in [("HP", "sold_hp"), ("ATK", "sold_atk"), ("DEF", "sold_def"), ("MDEF", "sold_mdef")]:
         if build.get(key):
@@ -173,7 +156,6 @@ def _build_embeds(hero: dict, build: dict | None) -> list[discord.Embed]:
     if bonuses:
         e1.add_field(name="Soldier Bonuses", value="  ".join(bonuses), inline=True)
 
-    # Weapons & armor
     gear_parts = []
     if build.get("weapons"):
         gear_parts.append("**Weapons:** " + ", ".join(build["weapons"]))
@@ -182,7 +164,6 @@ def _build_embeds(hero: dict, build: dict | None) -> list[discord.Embed]:
     if gear_parts:
         e1.add_field(name="Equipment Restrictions", value="\n".join(gear_parts), inline=True)
 
-    # Recommended soldiers
     if build.get("soldiers"):
         soldiers_str = ", ".join(build["soldiers"])
         if len(soldiers_str) > 1024:
